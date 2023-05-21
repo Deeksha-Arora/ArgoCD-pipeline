@@ -1,0 +1,68 @@
+pipeline {
+    agent any
+
+    tools {
+        // Install the Maven version configured as "M3" and add it to the path.
+        maven "mvn"
+    }
+    
+    stages {
+        
+        stage('Git checkout')
+        {
+            steps{
+                git branch: 'main', credentialsId: '874ceac7-9cd3-49d5-bd7e-ac7fea0fb48d', url: 'https://github.com/deeksha17091998/JenkinsNew.git'
+            }
+        }
+        stage('Maven clean phase') {
+            steps {
+                sh 'mvn clean'
+            
+            }
+
+            
+        }
+        stage('Maven build phase '){
+            steps{
+                sh 'mvn compile' 
+                sh 'mvn package'
+            }
+        }
+    //     stage('Sonarqube code analysis'){
+    //       steps{
+    //             withSonarQubeEnv(installationName: 'SonarqubeInstallation', credentialsId: 'sonarqubeToken') {
+    //             sh 'mvn sonar:sonar'
+                
+    //         }
+    //     }
+        
+    // }
+        stage('Docker Image build and push'){
+           steps{
+               sh 'docker build -t deekshaarora/jenkins:image${BUILD_NUMBER} .'
+               withDockerRegistry(credentialsId: 'DockerhubCred', url: 'https://index.docker.io/v1/') 
+               {
+                sh 'docker push deekshaarora/jenkins:image${BUILD_NUMBER}'
+                         }
+            }
+        }
+        stage('Update Deployment manifests')
+        {
+            steps{
+                sh '''  
+                git config user.email "deeksha.arora@nagarro.com"
+                git config user.name "deeksha17091998"
+                rm -rf JenkinsNew
+                git clone https://github.com/deeksha17091998/JenkinsNew.git
+                cd JenkinsNew
+                cd Manifests
+                sed -i "s/jenkins:.*/jenkins:image${BUILD_NUMBER}/g" deployment.yaml
+                git add .
+                git commit -m "latest commit ${BUILD_NUMBER}"
+                git push https://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@github.com/deeksha17091998/JenkinsNew.git 
+                '''
+                
+            }
+        }
+}
+}
